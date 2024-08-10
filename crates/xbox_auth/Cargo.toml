@@ -1,0 +1,19 @@
+[package]
+name = "xbl_auth"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+
+base64 = "0.22"
+byteorder = "1.5"
+chrono = "0.4"
+p256 = { version ="0.13", features = ["jwk"] }
+rand = "0.8"
+sha2 = "0.10"
+uuid = { version = "1.10", features = ["v4"] }
