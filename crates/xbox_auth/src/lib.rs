@@ -28,29 +28,30 @@ impl<'a> XBLAuth<'a> {
         }
     }
     pub async fn access_msa_token(&self) -> Result<Expire<MSATokenResponce>> {
-        let ret = match self.cache.get_msa().await {
+        match self.cache.get_msa().await {
+            Ok(msa_cache) if !msa_cache.is_expired() => Ok(msa_cache),
             Ok(msa_cache) => {
-                if !msa_cache.is_expired() {
-                    msa_cache
-                } else {
-                    let refresh_token = msa_cache.take().refresh_token;
-                    let msa = self.refresh_msa_token(&refresh_token).await?;
-                    self.cache.update_msa(&msa).await?;
-                    msa
+                let refresh_token = msa_cache.take().refresh_token;
+                match self.refresh_msa_token(&refresh_token).await {
+                    Ok(msa) => {
+                        self.cache.update_msa(&msa).await?;
+                        Ok(msa)
+                    }
+                    Err(_) => self.msa_auth().await,
                 }
             }
-            Err(..) => {
-                let responce = self.start_msa_auth().await?;
-                println!(
-                    "Open the page \"{}?otc={}\" in a web browser to sign in as {}",
-                    responce.verification_uri, responce.user_code, self.user_name
-                );
-                let msa = self.wait_msa_auth(responce).await?;
-                self.cache.update_msa(&msa).await?;
-                msa
-            }
-        };
-        Ok(ret)
+            Err(..) => self.msa_auth().await,
+        }
+    }
+    async fn msa_auth(&self) -> Result<Expire<MSATokenResponce>> {
+        let responce = self.start_msa_auth().await?;
+        println!(
+            "Open the page \"{}?otc={}\" in a web browser to sign in as {}",
+            responce.verification_uri, responce.user_code, self.user_name
+        );
+        let msa = self.wait_msa_auth(responce).await?;
+        self.cache.update_msa(&msa).await?;
+        Ok(msa)
     }
 }
 
