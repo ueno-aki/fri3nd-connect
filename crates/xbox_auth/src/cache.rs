@@ -8,7 +8,7 @@ use tokio::{
     task::spawn_blocking,
 };
 
-use crate::{expire::Expire, msa_live::MSATokenResponce};
+use crate::{expire::Expire, msa_live::MSATokenResponce, request_token::XSTSToken};
 
 pub struct Cache<'a> {
     path: &'a Path,
@@ -35,6 +35,20 @@ impl<'a> Cache<'a> {
     pub async fn update_msa(&self, msa: &Expire<MSATokenResponce>) -> Result<()> {
         let path = self.path.join(format!("{}_msa-cache.json", self.user_hash));
         let content = serde_json::to_vec(msa)?;
+        write(path, content).await?;
+        Ok(())
+    }
+
+    pub async fn get_xsts(&self) -> Result<Expire<XSTSToken>> {
+        let path = self.path.join(format!("{}_xbl-cache.json", self.user_hash));
+        let mut buffer = vec![];
+        File::open(path).await?.read_to_end(&mut buffer).await?;
+        let ret = spawn_blocking(move || serde_json::from_slice(&buffer)).await??;
+        Ok(ret)
+    }
+    pub async fn update_xsts(&self, xsts: &Expire<XSTSToken>) -> Result<()> {
+        let path = self.path.join(format!("{}_xbl-cache.json", self.user_hash));
+        let content = serde_json::to_vec(xsts)?;
         write(path, content).await?;
         Ok(())
     }

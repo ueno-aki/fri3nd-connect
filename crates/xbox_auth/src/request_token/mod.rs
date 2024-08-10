@@ -4,18 +4,48 @@ use _inner::null_terminated;
 use anyhow::Result;
 use base64::prelude::*;
 use byteorder::{WriteBytesExt, BE};
+use chrono::DateTime;
 use p256::ecdsa::{signature::RandomizedDigestSigner, Signature, SigningKey};
 use rand::thread_rng;
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
+use xbox_device_token::XDeviceDisplayClaims;
+use xbox_title_token::XTitleDisplayClaims;
+use xbox_user_token::XUserDisplayClaims;
+use xsts_token::{XstsClaim, XstsDisplayClaims};
 
-use crate::now_secs;
+use crate::{expire::Expire, now_secs};
 
 pub mod xbox_device_token;
 pub mod xbox_title_token;
 pub mod xbox_user_token;
 pub mod xsts_token;
+
+pub type UserToken = ResponseToken<XUserDisplayClaims>;
+pub type DeviceToken = ResponseToken<XDeviceDisplayClaims>;
+pub type TitleToken = ResponseToken<XTitleDisplayClaims>;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct XSTSToken {
+    pub gamer_tag: String,
+    pub xuid: String,
+    pub user_hash: String,
+    pub token: String,
+}
+impl XSTSToken {
+    pub fn from_response_token(value: ResponseToken<XstsDisplayClaims>) -> Result<Expire<Self>> {
+        let expired_at = DateTime::parse_from_rfc3339(&value.not_after)?.timestamp();
+        let [XstsClaim { gtg, uhs, xid }] = value.display_claims.xui;
+        let xsts_token = Self {
+            gamer_tag: gtg,
+            user_hash: uhs,
+            xuid: xid,
+            token: value.token,
+        };
+        Ok(Expire::with_timestamp(xsts_token, expired_at as u64))
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]

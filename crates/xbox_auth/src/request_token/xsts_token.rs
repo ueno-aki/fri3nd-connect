@@ -5,33 +5,26 @@ use crate::{
     request_token::{_inner::headers, generate_signature},
 };
 
-use super::{
-    xbox_device_token::XDeviceDisplayClaims, xbox_title_token::XTitleDisplayClaims,
-    xbox_user_token::XUserDisplayClaims, ResponseToken, SignedRequestToken,
-};
-
-type UserToken = ResponseToken<XUserDisplayClaims>;
-type DeviceToken = ResponseToken<XDeviceDisplayClaims>;
-type TitleToken = ResponseToken<XTitleDisplayClaims>;
+use super::{DeviceToken, ResponseToken, SignedRequestToken, TitleToken, UserToken};
 
 #[derive(Debug)]
-pub struct XstsTokenRequest {
+pub struct XstsTokenRequest<'a> {
     user_token: UserToken,
     device_token: DeviceToken,
     title_token: TitleToken,
-    proofkey: ProofKey,
+    proofkey: &'a ProofKey,
 }
 
-impl XstsTokenRequest {
+impl XstsTokenRequest<'_> {
     pub const XSTS_REQUEST_URL: &'static str = "https://xsts.auth.xboxlive.com/xsts/authorize";
     #[inline]
     pub fn new(
         user_token: UserToken,
         device_token: DeviceToken,
         title_token: TitleToken,
-        proofkey: ProofKey,
-    ) -> Self {
-        Self {
+        proofkey: &ProofKey,
+    ) -> XstsTokenRequest<'_> {
+        XstsTokenRequest {
             user_token,
             device_token,
             title_token,
@@ -49,11 +42,9 @@ pub struct XstsClaim {
     pub gtg: String,
     pub xid: String,
     pub uhs: String,
-    pub usr: String,
-    pub prv: String,
 }
 
-impl SignedRequestToken for XstsTokenRequest {
+impl SignedRequestToken for XstsTokenRequest<'_> {
     type DisplayClaims = XstsDisplayClaims;
 
     async fn request_token(

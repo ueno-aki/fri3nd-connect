@@ -7,16 +7,16 @@ use crate::{crypto::ProofKey, request_token::_inner::headers};
 use super::{generate_signature, SignedRequestToken};
 
 #[derive(Debug)]
-pub struct XboxDeviceTokenRequest {
-    proofkey: ProofKey,
+pub struct XboxDeviceTokenRequest<'a> {
+    proofkey: &'a ProofKey,
 }
 
-impl XboxDeviceTokenRequest {
+impl XboxDeviceTokenRequest<'_> {
     pub const DEVICE_REQUEST_URL: &'static str =
         "https://device.auth.xboxlive.com/device/authenticate";
     #[inline]
-    pub fn new(proofkey: ProofKey) -> Self {
-        Self { proofkey }
+    pub fn new(proofkey: &ProofKey) -> XboxDeviceTokenRequest<'_> {
+        XboxDeviceTokenRequest { proofkey }
     }
 }
 
@@ -30,7 +30,7 @@ pub struct XdtClaim {
     pub dcs: String,
 }
 
-impl SignedRequestToken for XboxDeviceTokenRequest {
+impl SignedRequestToken for XboxDeviceTokenRequest<'_> {
     type DisplayClaims = XDeviceDisplayClaims;
 
     async fn request_token(

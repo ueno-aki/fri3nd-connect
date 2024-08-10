@@ -8,18 +8,22 @@ use crate::{
 use super::SignedRequestToken;
 
 #[derive(Debug)]
-pub struct XboxTitleTokenRequest {
+pub struct XboxTitleTokenRequest<'a> {
     msa_access_token: String,
     device_token: String,
-    proofkey: ProofKey,
+    proofkey: &'a ProofKey,
 }
 
-impl XboxTitleTokenRequest {
+impl XboxTitleTokenRequest<'_> {
     pub const TITLE_REQUEST_URL: &'static str =
         "https://title.auth.xboxlive.com/title/authenticate";
     #[inline]
-    pub fn new(msa_access_token: String, device_token: String, proofkey: ProofKey) -> Self {
-        Self {
+    pub fn new(
+        msa_access_token: String,
+        device_token: String,
+        proofkey: &ProofKey,
+    ) -> XboxTitleTokenRequest<'_> {
+        XboxTitleTokenRequest {
             msa_access_token,
             device_token,
             proofkey,
@@ -36,7 +40,7 @@ pub struct XttClaim {
     pub tid: String,
 }
 
-impl SignedRequestToken for XboxTitleTokenRequest {
+impl SignedRequestToken for XboxTitleTokenRequest<'_> {
     type DisplayClaims = XTitleDisplayClaims;
 
     async fn request_token(
