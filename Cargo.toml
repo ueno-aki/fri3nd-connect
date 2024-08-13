@@ -1,7 +1,9 @@
 [workspace]
-members = ["crates/xbox_auth"]
+members = [ "crates/real_time_activity","crates/xbl_auth"]
 
 [workspace.dependencies]
+xbl_auth = { path = "./crates/xbl_auth" }
+
 reqwest = { version = "0.12", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1"

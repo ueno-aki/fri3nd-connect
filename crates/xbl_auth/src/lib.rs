@@ -7,8 +7,8 @@ use p256::ecdsa::SigningKey;
 use rand::thread_rng;
 use request_token::{
     xbox_device_token::XboxDeviceTokenRequest, xbox_title_token::XboxTitleTokenRequest,
-    xbox_user_token::XboxUserTokenRequest, xsts_token::XstsTokenRequest, SignedRequestToken,
-    XSTSToken,
+    xbox_user_token::XboxUserTokenRequest, xsts_token::XstsTokenRequest, DeviceToken,
+    SignedRequestToken, TitleToken, UserToken, XSTSToken,
 };
 use reqwest::Client;
 use std::path::Path;
@@ -44,19 +44,11 @@ impl<'a> XBLAuth<'a> {
             _ => {
                 let proofkey = ProofKey::from(*self.signing_key.verifying_key());
                 let msa = self.access_msa_token().await?;
-                let xut = XboxUserTokenRequest::new(msa.try_get()?.access_token.to_owned())
-                    .request_token(&self.signing_key, Client::clone(&self.client))
+                let xut = self.get_user_token(msa.try_get()?).await?;
+                let xdt = self.get_device_token(&proofkey).await?;
+                let xtt = self
+                    .get_title_token(msa.try_get()?, &xdt, &proofkey)
                     .await?;
-                let xdt = XboxDeviceTokenRequest::new(&proofkey)
-                    .request_token(&self.signing_key, Client::clone(&self.client))
-                    .await?;
-                let xtt = XboxTitleTokenRequest::new(
-                    msa.try_get()?.access_token.to_owned(),
-                    xdt.token.clone(),
-                    &proofkey,
-                )
-                .request_token(&self.signing_key, Client::clone(&self.client))
-                .await?;
                 let xsts = XstsTokenRequest::new(xut, xdt, xtt, &proofkey)
                     .request_token(&self.signing_key, Client::clone(&self.client))
                     .await?;
@@ -66,6 +58,33 @@ impl<'a> XBLAuth<'a> {
         self.cache.update_xsts(&ret).await?;
         Ok(ret)
     }
+
+    #[inline]
+    async fn get_user_token(&self, msa_token: &MSATokenResponce) -> Result<UserToken> {
+        let access_token = msa_token.access_token.clone();
+        XboxUserTokenRequest::new(access_token)
+            .request_token(&self.signing_key, self.client.clone())
+            .await
+    }
+    #[inline]
+    async fn get_device_token(&self, proofkey: &ProofKey) -> Result<DeviceToken> {
+        XboxDeviceTokenRequest::new(proofkey)
+            .request_token(&self.signing_key, self.client.clone())
+            .await
+    }
+    #[inline]
+    async fn get_title_token(
+        &self,
+        msa_token: &MSATokenResponce,
+        device_token: &DeviceToken,
+        proofkey: &ProofKey,
+    ) -> Result<TitleToken> {
+        let access_token = msa_token.access_token.clone();
+        XboxTitleTokenRequest::new(access_token, device_token.token.clone(), proofkey)
+            .request_token(&self.signing_key, self.client.clone())
+            .await
+    }
+
     pub async fn access_msa_token(&self) -> Result<Expire<MSATokenResponce>> {
         let ret = match self.cache.get_msa().await {
             Ok(msa_cache) if !msa_cache.is_expired() => msa_cache,
@@ -81,6 +100,7 @@ impl<'a> XBLAuth<'a> {
         self.cache.update_msa(&ret).await?;
         Ok(ret)
     }
+    #[inline]
     async fn auth_device_code(&self) -> Result<Expire<MSATokenResponce>> {
         let responce = self.start_msa_auth().await?;
         println!(
@@ -100,12 +120,12 @@ mod tests {
 
     use crate::XBLAuth;
 
+    #[ignore]
     #[tokio::test]
     async fn test_xbl_auth() -> Result<()> {
         let xbl_auth = XBLAuth::new(Path::new("../../auth"), "Ferris");
         let xsts = xbl_auth.get_xbox_token().await?;
         dbg!(&xsts);
-
         Ok(())
     }
 }

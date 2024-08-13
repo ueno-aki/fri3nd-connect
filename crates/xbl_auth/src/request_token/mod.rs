@@ -49,7 +49,7 @@ impl XSTSToken {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct ResponseToken<T: Debug> {
+pub struct ResponseToken<T> {
     pub issue_instant: String,
     pub not_after: String,
     pub token: String,
