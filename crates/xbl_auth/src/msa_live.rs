@@ -26,7 +26,7 @@ pub trait MsaAuthFlow {
     ) -> impl std::future::Future<Output = Result<Expire<MSATokenResponce>>> + Send;
 }
 
-impl MsaAuthFlow for XBLAuth<'_> {
+impl MsaAuthFlow for XBLAuth {
     async fn start_msa_auth(&self) -> Result<DeviceAuthResponse> {
         let ret = self
             .client

@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Result;
 use cache::Cache;
 use crypto::ProofKey;
@@ -11,7 +13,6 @@ use request_token::{
     SignedRequestToken, TitleToken, UserToken, XSTSToken,
 };
 use reqwest::Client;
-use std::path::Path;
 
 pub mod cache;
 pub mod crypto;
@@ -19,18 +20,19 @@ pub mod expire;
 pub mod msa_live;
 pub mod request_token;
 
-pub struct XBLAuth<'a> {
-    pub user_name: &'a str,
-    cache: Cache<'a>,
+#[derive(Debug)]
+pub struct XBLAuth {
+    pub user_name: String,
+    cache: Cache,
     client: Client,
     signing_key: SigningKey,
 }
 
-impl<'a> XBLAuth<'a> {
-    pub fn new(cache_path: &'a Path, user_name: &'a str) -> Self {
+impl XBLAuth {
+    pub fn new(cache_path: PathBuf, user_name: String) -> Self {
         let signing_key = SigningKey::random(&mut thread_rng());
         let client = Client::new();
-        let cache = Cache::new(cache_path, user_name);
+        let cache = Cache::new(cache_path, &user_name);
         Self {
             user_name,
             cache,
@@ -123,7 +125,7 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn test_xbl_auth() -> Result<()> {
-        let xbl_auth = XBLAuth::new(Path::new("../../auth"), "Ferris");
+        let xbl_auth = XBLAuth::new(Path::new("../../auth").to_path_buf(), "Ferris".into());
         let xsts = xbl_auth.get_xbox_token().await?;
         dbg!(&xsts);
         Ok(())

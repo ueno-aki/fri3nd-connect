@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use std::path::Path;
-
 use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
 use tokio_tungstenite::{
@@ -14,23 +12,24 @@ use crate::message::MessageData;
 pub mod message;
 pub mod status;
 
-#[derive(Debug, Default)]
-pub struct RtaClient {
+#[derive(Debug)]
+pub struct RtaClient<'a> {
+    xbl_auth: &'a XBLAuth,
     sequence_id: u64,
 }
-impl RtaClient {
+impl RtaClient<'_> {
     const WS_ADDRESS: &'static str = "wss://rta.xboxlive.com/connect";
 
-    pub fn new() -> Self {
-        RtaClient::default()
+    pub fn new(auth: &XBLAuth) -> RtaClient<'_> {
+        RtaClient {
+            xbl_auth: auth,
+            sequence_id: 0,
+        }
     }
 
     pub async fn init(&self) -> Result<()> {
-        let xbl_auth = XBLAuth::new(Path::new("../../auth"), "Ferris");
-        println!("xbl_authed");
-
         let authorization = {
-            let xsts = xbl_auth.get_xbox_token().await?.take();
+            let xsts = self.xbl_auth.get_xbox_token().await?.take();
             format!("XBL3.0 x={};{}", xsts.user_hash, xsts.token)
         };
         let builder = ClientRequestBuilder::new(Self::WS_ADDRESS.parse()?)
@@ -73,12 +72,15 @@ pub struct ConnectionId {
 mod tests {
 
     use anyhow::Result;
+    use xbl_auth::XBLAuth;
 
     use crate::RtaClient;
 
     #[tokio::test]
     async fn it_works() -> Result<()> {
-        let client = RtaClient::new();
+        let xbl_auth = XBLAuth::new("../../auth".parse()?, "Ferris".into());
+        println!("xbl_authed");
+        let client = RtaClient::new(&xbl_auth);
         client.init().await?;
         Ok(())
     }

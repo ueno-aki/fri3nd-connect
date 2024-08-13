@@ -1,4 +1,4 @@
-use std::{fs, path::Path};
+use std::{fs, path::PathBuf};
 
 use anyhow::Result;
 use sha2::{Digest, Sha256};
@@ -10,15 +10,16 @@ use tokio::{
 
 use crate::{expire::Expire, msa_live::MSATokenResponce, request_token::XSTSToken};
 
-pub struct Cache<'a> {
-    path: &'a Path,
+#[derive(Debug)]
+pub struct Cache {
+    path: PathBuf,
     user_hash: String,
 }
 
-impl<'a> Cache<'a> {
-    pub fn new(path: &'a Path, user_name: &str) -> Self {
+impl Cache {
+    pub fn new(path: PathBuf, user_name: &str) -> Self {
         if !path.exists() {
-            fs::create_dir(path).unwrap();
+            fs::create_dir(&path).unwrap();
         }
         Cache {
             path,
