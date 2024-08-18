@@ -1,8 +1,17 @@
+[package]
+name = "friend_connect"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+
 [workspace]
-members = [ "crates/friend_connect", "crates/real_time_activity","crates/xbl_auth"]
+members = [ "crates/portal", "crates/real_time_activity","crates/xbl_auth"]
 
 [workspace.dependencies]
 xbl_auth = { path = "./crates/xbl_auth" }
+real_time_activity = { path = "./crates/real_time_activity" }
 
 reqwest = { version = "0.12", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
