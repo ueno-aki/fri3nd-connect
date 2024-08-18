@@ -1,4 +1,5 @@
-use anyhow::{anyhow, Result};
+use std::ops::{Deref, DerefMut};
+
 use serde::{Deserialize, Serialize};
 
 #[macro_export]
@@ -33,33 +34,7 @@ impl<V> Expire<V> {
 
     #[inline]
     pub fn is_expired(&self) -> bool {
-        self.expired_at <= now_secs!()
-    }
-
-    #[inline]
-    pub fn get(&self) -> &V {
-        self.try_get().unwrap()
-    }
-    #[inline]
-    pub fn get_mut(&mut self) -> &mut V {
-        self.try_get_mut().unwrap()
-    }
-
-    #[inline]
-    pub fn try_get(&self) -> Result<&V> {
-        if self.is_expired() {
-            Err(anyhow!("This value expired yet."))
-        } else {
-            Ok(&self.data)
-        }
-    }
-    #[inline]
-    pub fn try_get_mut(&mut self) -> Result<&mut V> {
-        if self.is_expired() {
-            Err(anyhow!("This value expired yet."))
-        } else {
-            Ok(&mut self.data)
-        }
+        self.expired_at <= now_secs!() + 10
     }
 
     #[inline]
@@ -68,19 +43,26 @@ impl<V> Expire<V> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::time::Duration;
+impl<T> Deref for Expire<T> {
+    type Target = T;
 
-    use tokio::time::sleep;
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+impl<T> DerefMut for Expire<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
+}
 
-    use super::Expire;
-
-    #[tokio::test]
-    async fn test_expired_value() {
-        let now = Expire::with_timestamp(String::from("Expire"), 1 + now_secs!());
-        assert_eq!(now.try_get().ok(), Some(&String::from("Expire")));
-        sleep(Duration::from_secs(1)).await;
-        assert!(now.try_get().is_err());
+impl<T> AsRef<T> for Expire<T> {
+    fn as_ref(&self) -> &T {
+        &self.data
+    }
+}
+impl<T> AsMut<T> for Expire<T> {
+    fn as_mut(&mut self) -> &mut T {
+        &mut self.data
     }
 }

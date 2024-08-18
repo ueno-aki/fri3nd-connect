@@ -1,5 +1,5 @@
 [workspace]
-members = [ "crates/real_time_activity","crates/xbl_auth"]
+members = [ "crates/friend_connect", "crates/real_time_activity","crates/xbl_auth"]
 
 [workspace.dependencies]
 xbl_auth = { path = "./crates/xbl_auth" }

@@ -26,6 +26,7 @@ pub struct XBLAuth {
     cache: Cache,
     client: Client,
     signing_key: SigningKey,
+    msa_token: Option<Expire<MSATokenResponce>>,
 }
 
 impl XBLAuth {
@@ -38,21 +39,22 @@ impl XBLAuth {
             cache,
             client,
             signing_key,
+            msa_token: None,
         }
     }
-    pub async fn get_xbox_token(&self) -> Result<Expire<XSTSToken>> {
+
+    pub async fn get_xbox_token(&mut self) -> Result<Expire<XSTSToken>> {
         let ret = match self.cache.get_xsts().await {
-            Ok(xsts_cache) if !xsts_cache.is_expired() => xsts_cache,
+            Ok(xsts_cache) if !xsts_cache.is_expired() => return Ok(xsts_cache),
             _ => {
                 let proofkey = ProofKey::from(*self.signing_key.verifying_key());
-                let msa = self.access_msa_token().await?;
-                let xut = self.get_user_token(msa.try_get()?).await?;
-                let xdt = self.get_device_token(&proofkey).await?;
-                let xtt = self
-                    .get_title_token(msa.try_get()?, &xdt, &proofkey)
+                let user = self.get_user_token().await?;
+                let device = self.get_device_token(&proofkey).await?;
+                let title = self
+                    .get_title_token(device.token.clone(), &proofkey)
                     .await?;
-                let xsts = XstsTokenRequest::new(xut, xdt, xtt, &proofkey)
-                    .request_token(&self.signing_key, Client::clone(&self.client))
+                let xsts = XstsTokenRequest::new(user, device, title, &proofkey)
+                    .request_token(&self.signing_key, self.client.clone())
                     .await?;
                 XSTSToken::from_response_token(xsts)?
             }
@@ -61,48 +63,58 @@ impl XBLAuth {
         Ok(ret)
     }
 
-    #[inline]
-    async fn get_user_token(&self, msa_token: &MSATokenResponce) -> Result<UserToken> {
-        let access_token = msa_token.access_token.clone();
-        XboxUserTokenRequest::new(access_token)
+    async fn get_user_token(&mut self) -> Result<UserToken> {
+        XboxUserTokenRequest::new(self.fetch_access_token().await?)
             .request_token(&self.signing_key, self.client.clone())
             .await
     }
-    #[inline]
     async fn get_device_token(&self, proofkey: &ProofKey) -> Result<DeviceToken> {
         XboxDeviceTokenRequest::new(proofkey)
             .request_token(&self.signing_key, self.client.clone())
             .await
     }
-    #[inline]
     async fn get_title_token(
-        &self,
-        msa_token: &MSATokenResponce,
-        device_token: &DeviceToken,
+        &mut self,
+        device_token: String,
         proofkey: &ProofKey,
     ) -> Result<TitleToken> {
-        let access_token = msa_token.access_token.clone();
-        XboxTitleTokenRequest::new(access_token, device_token.token.clone(), proofkey)
+        XboxTitleTokenRequest::new(self.fetch_access_token().await?, device_token, proofkey)
             .request_token(&self.signing_key, self.client.clone())
             .await
     }
 
-    pub async fn access_msa_token(&self) -> Result<Expire<MSATokenResponce>> {
-        let ret = match self.cache.get_msa().await {
-            Ok(msa_cache) if !msa_cache.is_expired() => msa_cache,
-            Ok(msa_cache) => {
-                let refresh_token = msa_cache.take().refresh_token;
-                match self.refresh_msa_token(&refresh_token).await {
-                    Ok(msa) => msa,
-                    Err(_) => self.auth_device_code().await?,
+    async fn fetch_access_token(&mut self) -> Result<String> {
+        let msa_token = match &self.msa_token {
+            Some(msa) if !msa.is_expired() => return Ok(msa.access_token.to_owned()),
+            Some(msa) => match self.refresh_msa_token(&msa.refresh_token).await {
+                Ok(v) => v,
+                Err(_) => {
+                    println!("Failed to refresh the MSAToken.");
+                    self.auth_device_code().await?
                 }
-            }
-            Err(..) => self.auth_device_code().await?,
+            },
+            None => self.get_msa_cache().await?,
         };
-        self.cache.update_msa(&ret).await?;
+        let ret = msa_token.access_token.to_owned();
+        self.cache.update_msa(&msa_token).await?;
+        self.msa_token = Some(msa_token);
         Ok(ret)
     }
-    #[inline]
+
+    async fn get_msa_cache(&self) -> Result<Expire<MSATokenResponce>> {
+        match self.cache.get_msa().await {
+            Ok(msa) if !msa.is_expired() => Ok(msa),
+            Ok(msa) => match self.refresh_msa_token(&msa.refresh_token).await {
+                m @ Ok(..) => m,
+                Err(_) => {
+                    println!("Failed to refresh the MSAToken.");
+                    self.auth_device_code().await
+                }
+            },
+            Err(_) => self.auth_device_code().await,
+        }
+    }
+
     async fn auth_device_code(&self) -> Result<Expire<MSATokenResponce>> {
         let responce = self.start_msa_auth().await?;
         println!(
@@ -111,23 +123,5 @@ impl XBLAuth {
         );
         let msa = self.wait_msa_auth(responce).await?;
         Ok(msa)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::path::Path;
-
-    use anyhow::Result;
-
-    use crate::XBLAuth;
-
-    #[ignore]
-    #[tokio::test]
-    async fn test_xbl_auth() -> Result<()> {
-        let xbl_auth = XBLAuth::new(Path::new("../../auth").to_path_buf(), "Ferris".into());
-        let xsts = xbl_auth.get_xbox_token().await?;
-        dbg!(&xsts);
-        Ok(())
     }
 }

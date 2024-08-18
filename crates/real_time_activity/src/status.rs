@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Status {
     Success = 0,
     UnknownResource = 1,
@@ -7,8 +7,9 @@ pub enum Status {
     Throttled = 1001,
     ServiceUnavailable = 1002,
 }
-impl From<u64> for Status {
-    fn from(value: u64) -> Self {
+
+impl From<i64> for Status {
+    fn from(value: i64) -> Self {
         match value {
             0 => Self::Success,
             1 => Self::UnknownResource,
